@@ -14,57 +14,58 @@ if (process.argv.length - 2 < 1) {
 
 const diffFileName = process.argv[2];
 
-const diff = fs.readFileSync(diffFileName, 'utf8').split(/\r?\n/).filter(line => line !== '\\ No newline at end of file');
+const diff = fs.readFileSync(diffFileName, 'utf8').split(/\r?\n/);
+// .filter(line => line !== '\\ No newline at end of file');
 
-let lineIdx = 0;
+// let lineIdx = 0;
 
-while (lineIdx < diff.length) {
-// while (lineIdx < 100) {
+const diffHeaderIndices = diff
+	.map((line, idx) => [line, idx])
+	.filter(lineIdxTuple => parseInt(lineIdxTuple[0], 10))
+	.map(lineIdxTuple => lineIdxTuple[1]);
 
-	const header = diff[lineIdx];
+const diffBlocks = diffHeaderIndices.map((headerIdx, idx, array) => {
+	const blockEndIndex = array[idx + 1] || diff.length;// start of next block else EOF
+	return diff.slice(headerIdx, array[idx + 1]);
+});
 
-	if (header.includes(',')) {
-		const matches = /(\d+),(\d+)/.exec(header);// ["9,10", "9", "10"]
+diffBlocks.forEach(blockToJsPrint);
 
-		const startLine = parseInt(matches[1], 10);// 9
-		const endLine = parseInt(matches[2], 10);// 10
-		const blockSize = endLine - startLine + 1;// 2
+function blockToJsPrint(block) {
+	const header = block[0];// '141d141'
 
-		if (blockSize > 10) {
-			// it's probably an indel
-			console.log(`// Indel in ${startLine},${endLine}`);
-		} else {
-			for (let blockIdx = 0; blockIdx < blockSize; blockIdx ++) {
-				const lineDiff = compareLines(diff[lineIdx + blockIdx + 1], diff[lineIdx + blockSize + blockIdx + 2]);
-				printLineDiff(lineDiff, startLine + blockIdx);
-			}
-		}
-		lineIdx += 2 * blockSize + 2;
+	const sourceFileIndices = header.match(/^(\d+),(\d+)/);
+	let startIdx, endIdx;
+
+	if (sourceFileIndices !== null) {// '217,218c217,218'
+		startIdx = parseInt(sourceFileIndices[1], 10);
+		endIdx = parseInt(sourceFileIndices[2], 10);
+	} else {// '261c261'
+		startIdx = endIdx = parseInt(header, 10);
+	}
+
+	if (header.includes('a')) {
+		const newHalfwords = block.slice(1).reduce((cumul, insertionLine) => {
+			return cumul + insertionLine.substring(2);// '> 73' => '2e6273'
+		}, '');
+		// console.log(`[${startIdx - 1}] += '${newHalfwords}';`);
+	} else if (header.includes('c')) {
+
+	} else if (header.includes('d')) {
+		range(startIdx, endIdx).forEach(lineNum => {
+			console.log(`[${lineNum - 1}] = '';`);
+		});
 	} else {
-		const sourceLineIdx = parseInt(header, 10);// 14
-		const lineDiff = compareLines(diff[lineIdx + 1], diff[lineIdx + 3]);// blockIdx is 0, blockSize is 1
-		printLineDiff(lineDiff, sourceLineIdx);// ["5275", 4]
-		lineIdx += 4;
+		throw "This diff is wacky!";
 	}
 }
 
-/**
- *
- * @param lineA "< 5045 0000 4c01 0800 0000 0500 0024 0000"
- * @param lineB "< 6a02 0000 e000 0703 0b01 0218 000e 0000"
- */
 
-function compareLines(lineA, lineB) {
-	// A halfword is 2 bytes or four hex values.
-	halfwordsA = lineA.substring(2).split(' ');
-	halfwordsB = lineB.substring(2).split(' ');
-	return halfwordsB.map((halfwordB, idx) => {
-		return [halfwordB, idx];
-	}).filter(tuple => {
-		const [halfwordB, idx] = tuple;
-		return halfwordB !== halfwordsA[idx];
-	});
+function range(x, y) {
+	// inclusive range
+	return new Array(y - x + 1).fill(0).map((_, idx) => idx + x);
 }
+
 
 function printLineDiff(lineDiffs, lineNum) {
 	lineDiffs.forEach(lineDiff => {

@@ -48,9 +48,20 @@ function blockToJsPrint(block) {
 		const newHalfwords = block.slice(1).reduce((cumul, insertionLine) => {
 			return cumul + insertionLine.substring(2);// '> 73' => '2e6273'
 		}, '');
-		// console.log(`[${startIdx - 1}] += '${newHalfwords}';`);
+		console.log(`[${startIdx - 1}] += '${newHalfwords}';`);
 	} else if (header.includes('c')) {
+		const deletionBlockSize = endIdx - startIdx + 1;
+		// block = header + deletion + dashes + addition
+		const additionBlockSize = block.length - deletionBlockSize - 2;
+		const newHalfwords = block.slice(block.length - additionBlockSize, block.length).reduce((cumul, insertionLine) => {
+			return cumul + insertionLine.substring(2);// '> 73' => '2e6273'
+		}, '');
+		console.log(`[${startIdx - 1}] = '${newHalfwords}';`);
 
+		// don't delete first line
+		range(startIdx + 1, endIdx).forEach(lineNum => {
+			console.log(`[${lineNum - 1}] = '';`);
+		});
 	} else if (header.includes('d')) {
 		range(startIdx, endIdx).forEach(lineNum => {
 			console.log(`[${lineNum - 1}] = '';`);
